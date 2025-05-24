@@ -90,7 +90,7 @@ async function uploadFolderToDrive(folderPath, folderNameOnDrive = null) {
 
 //const inputDir = '/Volumes/Untitled/DCIM/100MSDCF';
 const inputDir = '../inputDir/100MSDCF';
-//const outputDir = './salida';
+const outputDir = './salida';
 //const outputDir = '/Volumes/3207571629/PRUEBA_DRIVE';
 const tempDir = '../temp';
 //const tempDir = '/Volumes/3207571629/PRUEBA_DRIVE/temp';
