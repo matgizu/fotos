@@ -91,8 +91,7 @@ async function uploadFolderToDrive(folderPath, folderNameOnDrive = null) {
 }
 
 const inputDir = '/Volumes/Untitled/DCIM/100MSDCF';
-//const inputDir = '../inputDir/100MSDCF';
-const outputDir = '/Volumes/3207571629/PRUEBA_DRIVE';
+//const inputDir = '../inputDir/24MAYO';
 //const tempDir = '../temp';
 const tempDir = '/Volumes/3207571629/PRUEBA_DRIVE/temp';
 
@@ -114,12 +113,11 @@ while (currentTime.getHours() < 10 || (currentTime.getHours() === 10 && currentT
     });
 }
 
-fs.ensureDirSync(outputDir);
 fs.ensureDirSync(tempDir);
 timeSlots.forEach(slot => {
-    fs.ensureDirSync(path.join(outputDir, slot.folderName));
+    fs.ensureDirSync(path.join(tempDir, slot.folderName));
 });
-fs.ensureDirSync(path.join(outputDir, 'other'));
+fs.ensureDirSync(path.join(tempDir, 'other'));
 
 async function convertRawToJpg(inputPath, outputPath) {
     try {
@@ -168,20 +166,6 @@ function findTimeSlot(imageDate) {
     });
 
     return slot ? slot.folderName : 'other';
-}
-
-async function getAlreadyProcessedFiles() {
-    const processedFiles = new Set();
-    const folders = await fs.readdir(outputDir);
-    for (const folder of folders) {
-        const fullPath = path.join(outputDir, folder);
-        if (!(await fs.stat(fullPath)).isDirectory()) continue;
-        const files = await fs.readdir(fullPath);
-        files
-            .filter(file => file.toLowerCase().endsWith('.jpg'))
-            .forEach(file => processedFiles.add(file.toLowerCase()));
-    }
-    return processedFiles;
 }
 
 async function processImage(filePath, slotName) {
@@ -278,7 +262,6 @@ async function processAllImages() {
         }));
         arwFilesWithDates.sort((a, b) => a.date - b.date);
         const sortedArwFiles = arwFilesWithDates.map(f => f.file);
-        const alreadyProcessed = new Set(); // No guardar nada local
         console.log(`📸 Imágenes por procesar: ${sortedArwFiles.length}`);
         let successCount = 0;
         let skippedCount = 0;
