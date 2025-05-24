@@ -10,7 +10,7 @@ const { PassThrough } = require('stream');
 
 // Configuración de Google Drive
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
-const KEYFILEPATH = './credentials.json'; // Cambia por tu ruta de credenciales
+const KEYFILEPATH = '/home/ubuntu/fotos/credentials.json';// Cambia por tu ruta de credenciales
 const DRIVE_ROOT_FOLDER_ID = '1vve-NNSnxiuwVLsxQm_0WGWOjMdxf9FL'; // <-- Pega aquí el ID de tu carpeta de Drive
 
 // Busca o crea una carpeta en Drive y retorna su ID
