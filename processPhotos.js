@@ -36,7 +36,7 @@ timeSlots.forEach(slot => {
     fs.ensureDirSync(path.join(outputDir, slot.folderName));
 });
 fs.ensureDirSync(path.join(outputDir, 'other'));
-
+/* DCRAW
 async function convertRawToJpg(inputPath, outputPath) {
     try {
         const command = `dcraw -v -w -T -q 3 "${inputPath}"`;
@@ -52,7 +52,18 @@ async function convertRawToJpg(inputPath, outputPath) {
         return false;
     }
 }
+*/
 
+async function convertRawToJpg(inputPath, outputPath) {
+    try {
+        const command = `convert "${inputPath}" -quality 90 "${outputPath}"`;
+        await execAsync(command);
+        return await fs.pathExists(outputPath);
+    } catch (error) {
+        console.error(`Error converting ${inputPath} with ImageMagick:`, error);
+        return false;
+    }
+}
 async function getImageDateTime(filePath) {
     try {
         const stats = fs.statSync(filePath);
