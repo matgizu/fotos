@@ -212,26 +212,27 @@ async function processAllImages() {
 }
     */
 
+const pLimit = require('p-limit');
+
 async function processAllImages() {
-    try {
-        const startTotalTime = Date.now(); // 🕒 Inicia el cronómetro global
+    const concurrencyLevels = [4, 8, 12, 16, 20]; // Puedes ajustar estos valores
+    const files = await fs.readdir(inputDir);
+    const arwFiles = files.filter(file => file.toLowerCase().endsWith('.arw'));
+    const alreadyProcessed = await getAlreadyProcessedFiles();
 
-        const files = await fs.readdir(inputDir);
-        const arwFiles = files.filter(file => file.toLowerCase().endsWith('.arw'));
-
-        const alreadyProcessed = await getAlreadyProcessedFiles();
-        console.log(`📸 Imágenes por procesar: ${arwFiles.length}`);
+    for (const concurrency of concurrencyLevels) {
+        console.log(`\n🧪 Probando con pLimit(${concurrency})...`);
 
         let successCount = 0;
         let skippedCount = 0;
 
-        const limit = pLimit(8); // Procesamiento paralelo
+        const startTime = Date.now();
+        const limit = pLimit(concurrency);
 
         const tasks = arwFiles.map(file => limit(async () => {
             const jpgName = file.replace('.ARW', '.jpg').toLowerCase();
 
             if (alreadyProcessed.has(jpgName)) {
-                console.log(`⏭️  Saltando ${file}, ya procesado`);
                 skippedCount++;
                 return;
             }
@@ -249,18 +250,14 @@ async function processAllImages() {
 
         await Promise.allSettled(tasks);
 
-        const endTotalTime = Date.now(); // 🕒 Finaliza cronómetro
-        const totalDurationSeconds = ((endTotalTime - startTotalTime) / 1000).toFixed(2);
-
-        console.log('🏁 Procesamiento finalizado');
-        console.log(`✅ Marca de agua aplicada: ${successCount}`);
-        console.log(`⏭️  Imágenes omitidas: ${skippedCount}`);
-        console.log(`📦 Total imágenes encontradas: ${arwFiles.length}`);
-        console.log(`⏱️ Tiempo total de ejecución: ${totalDurationSeconds} segundos`);
-    } catch (error) {
-        console.error('❌ Error procesando imágenes:', error);
+        const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log(`🧾 Resultados con pLimit(${concurrency}):`);
+        console.log(`   ✅ Procesadas: ${successCount}`);
+        console.log(`   ⏭️  Omitidas: ${skippedCount}`);
+        console.log(`   ⏱️ Tiempo total: ${totalTime} segundos`);
     }
 }
+
 
 
 
