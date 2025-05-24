@@ -212,7 +212,6 @@ async function processAllImages() {
 }
     */
 
-const pLimit = require('p-limit');
 
 async function processAllImages() {
     const concurrencyLevels = [4, 8, 12, 16, 20]; // Puedes ajustar estos valores
