@@ -90,10 +90,10 @@ async function uploadFolderToDrive(folderPath, folderNameOnDrive = null) {
     }
 }
 
-const inputDir = '/Volumes/Untitled/DCIM/100MSDCF';
-//const inputDir = '../inputDir/24MAYO';
-//const tempDir = '../temp';
-const tempDir = '/Volumes/3207571629/PRUEBA_DRIVE/temp';
+//const inputDir = '/Volumes/Untitled/DCIM/100MSDCF';
+const inputDir = '../inputDir/24MAYO';
+const tempDir = '../temp';
+//const tempDir = '/Volumes/3207571629/PRUEBA_DRIVE/temp';
 
 //const tempDir = './temp';
 const watermark2Path = './watermark2.png';
