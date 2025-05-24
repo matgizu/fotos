@@ -5,11 +5,13 @@ const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
 const { google } = require('googleapis');
+const pLimit = require('p-limit');
+const { PassThrough } = require('stream');
 
 // Configuración de Google Drive
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 const KEYFILEPATH = './credentials.json'; // Cambia por tu ruta de credenciales
-const DRIVE_ROOT_FOLDER_ID = '1Ssfv3ovfOGj0kNdiFtQr5jBecw_aXLY-'; // <-- Pega aquí el ID de tu carpeta de Drive
+const DRIVE_ROOT_FOLDER_ID = '1vve-NNSnxiuwVLsxQm_0WGWOjMdxf9FL'; // <-- Pega aquí el ID de tu carpeta de Drive
 
 // Busca o crea una carpeta en Drive y retorna su ID
 async function getOrCreateDriveFolder(drive, folderName, parentId = null) {
@@ -88,12 +90,11 @@ async function uploadFolderToDrive(folderPath, folderNameOnDrive = null) {
     }
 }
 
-//const inputDir = '/Volumes/Untitled/DCIM/100MSDCF';
-const inputDir = '../inputDir/100MSDCF';
-const outputDir = './salida';
-//const outputDir = '/Volumes/3207571629/PRUEBA_DRIVE';
-const tempDir = '../temp';
-//const tempDir = '/Volumes/3207571629/PRUEBA_DRIVE/temp';
+const inputDir = '/Volumes/Untitled/DCIM/100MSDCF';
+//const inputDir = '../inputDir/100MSDCF';
+const outputDir = '/Volumes/3207571629/PRUEBA_DRIVE';
+//const tempDir = '../temp';
+const tempDir = '/Volumes/3207571629/PRUEBA_DRIVE/temp';
 
 //const tempDir = './temp';
 const watermark2Path = './watermark2.png';
@@ -183,23 +184,18 @@ async function getAlreadyProcessedFiles() {
     return processedFiles;
 }
 
-async function processImage(filePath) {
+async function processImage(filePath, slotName) {
     try {
         const fileName = path.basename(filePath);
         const tempArwPath = path.join(tempDir, fileName);
         const tempJpgPath = path.join(tempDir, fileName.replace('.ARW', '.jpg'));
         const startTime = Date.now();
         await fs.copy(filePath, tempArwPath);
-        const imageDateTime = await getImageDateTime(filePath);
-        const timeSlotFolder = findTimeSlot(imageDateTime);
-        const outputFolderPath = path.join(outputDir, timeSlotFolder);
-        fs.ensureDirSync(outputFolderPath);
-        const finalOutputPath = path.join(outputFolderPath, fileName.replace('.ARW', '.jpg'));
         const conversionSuccess = await convertRawToJpg(tempArwPath, tempJpgPath);
         if (!conversionSuccess) {
             console.error(`Failed to convert ${fileName}`);
             await fs.remove(tempArwPath);
-            return;
+            return null;
         }
         const image = sharp(tempJpgPath);
         const metadata = await image.metadata();
@@ -217,29 +213,64 @@ async function processImage(filePath) {
         const watermark = await sharp(selectedWatermark)
             .resize(metadata.width, metadata.height, { fit: 'fill' })
             .toBuffer();
-        await image
+        const finalBuffer = await image
             .composite([{ input: watermark, top: 0, left: 0, blend: 'over' }])
             .jpeg({ quality: 90 })
-            .toFile(finalOutputPath);
+            .toBuffer();
         await fs.remove(tempArwPath);
         await fs.remove(tempJpgPath);
-        const endTime = Date.now();
-        const durationSeconds = ((endTime - startTime) / 1000).toFixed(2);
-        console.log(`✅ Successfully processed: ${fileName} -> ${timeSlotFolder} (${durationSeconds}s)`);
+        const durationSeconds = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log(`✅ Procesada: ${fileName} (${durationSeconds}s)`);
+        return { buffer: finalBuffer, name: fileName.replace('.ARW', '.jpg'), slotName };
     } catch (error) {
-        console.error(`❌ Error processing ${filePath}:`, error);
+        console.error(`❌ Error procesando ${filePath}:`, error);
+        return null;
     }
 }
 
-const pLimit = require('p-limit');
+async function uploadJpgBuffersToDrive(jpgBuffers, slotName) {
+    if (!jpgBuffers.length) return;
+    const auth = new google.auth.GoogleAuth({
+        keyFile: KEYFILEPATH,
+        scopes: SCOPES,
+    });
+    const drive = google.drive({ version: 'v3', auth });
+    const subFolderId = await getOrCreateDriveFolder(drive, slotName, DRIVE_ROOT_FOLDER_ID);
+    let uploadedCount = 0;
+    for (const jpg of jpgBuffers) {
+        try {
+            // Convertir buffer a stream
+            const stream = new PassThrough();
+            stream.end(jpg.buffer);
+            await drive.files.create({
+                resource: {
+                    name: jpg.name,
+                    parents: [subFolderId],
+                },
+                media: {
+                    mimeType: 'image/jpeg',
+                    body: stream,
+                },
+                fields: 'id',
+            });
+            uploadedCount++;
+            console.log(`  ✔️ Subido: ${jpg.name}`);
+        } catch (err) {
+            console.error(`  ❌ Error subiendo ${jpg.name}:`, err.message);
+        }
+    }
+    if (uploadedCount === 0) {
+        console.log('  ⚠️  No se subió ningún JPG a Drive para este slot.');
+    } else {
+        console.log(`🚀 Slot subido a Drive: ${slotName} (${uploadedCount} archivos)`);
+    }
+}
 
 async function processAllImages() {
     try {
         const startTotalTime = Date.now();
         const files = await fs.readdir(inputDir);
         const arwFiles = files.filter(file => file.toLowerCase().endsWith('.arw'));
-
-        // Ordenar archivos por fecha de creación
         const arwFilesWithDates = await Promise.all(arwFiles.map(async file => {
             const filePath = path.join(inputDir, file);
             const stats = await fs.stat(filePath);
@@ -247,14 +278,11 @@ async function processAllImages() {
         }));
         arwFilesWithDates.sort((a, b) => a.date - b.date);
         const sortedArwFiles = arwFilesWithDates.map(f => f.file);
-
-        const alreadyProcessed = await getAlreadyProcessedFiles();
+        const alreadyProcessed = new Set(); // No guardar nada local
         console.log(`📸 Imágenes por procesar: ${sortedArwFiles.length}`);
         let successCount = 0;
         let skippedCount = 0;
-        let batchNumber = 1;
         const limit = pLimit(12);
-
         // Agrupar archivos por slot
         const slotGroups = {};
         for (const file of sortedArwFiles) {
@@ -264,41 +292,17 @@ async function processAllImages() {
             if (!slotGroups[timeSlotFolder]) slotGroups[timeSlotFolder] = [];
             slotGroups[timeSlotFolder].push(file);
         }
-
-        // Procesar slot por slot, pero imágenes dentro del slot en paralelo
+        // Procesar slot por slot, imágenes en paralelo, y subir directamente a Drive
         for (const slotName of Object.keys(slotGroups)) {
             const filesInSlot = slotGroups[slotName];
-            const tasks = filesInSlot.map(file => limit(async () => {
-                const jpgName = file.replace('.ARW', '.jpg').toLowerCase();
-                if (alreadyProcessed.has(jpgName)) {
-                    console.log(`⏭️  Saltando ${file}, ya procesado`);
-                    skippedCount++;
-                    return;
-                }
-                const filePath = path.join(inputDir, file);
-                await processImage(filePath);
-                const outputPath = path.join(outputDir, slotName, jpgName);
-                if (await fs.pathExists(outputPath)) {
-                    successCount++;
-                }
-            }));
-            await Promise.all(tasks);
-            // Subir la carpeta del slot a Drive
-            const folderPath = path.join(outputDir, slotName);
-            await uploadFolderToDrive(folderPath, `${slotName}_batch${batchNumber}`);
-            batchNumber++;
-        }
-        // Subir la carpeta 'other' si se procesó alguna foto ahí
-        const otherFolderPath = path.join(outputDir, 'other');
-        if ((await fs.readdir(otherFolderPath)).length > 0) {
-            await uploadFolderToDrive(otherFolderPath, `other_batch${batchNumber}`);
+            const jpgBuffers = (await Promise.all(filesInSlot.map(file => limit(() => processImage(path.join(inputDir, file), slotName))))).filter(Boolean);
+            await uploadJpgBuffersToDrive(jpgBuffers, slotName);
+            successCount += jpgBuffers.length;
         }
         const endTotalTime = Date.now();
         const totalDurationSeconds = ((endTotalTime - startTotalTime) / 1000).toFixed(2);
         console.log('🏁 Procesamiento finalizado');
-        console.log(`✅ Marca de agua aplicada: ${successCount}`);
-        console.log(`⏭️  Imágenes omitidas: ${skippedCount}`);
-        console.log(`📦 Total imágenes encontradas: ${sortedArwFiles.length}`);
+        console.log(`✅ Marca de agua aplicada y subidas: ${successCount}`);
         console.log(`⏱️ Tiempo total de ejecución: ${totalDurationSeconds} segundos`);
     } catch (error) {
         console.error('❌ Error procesando imágenes:', error);
