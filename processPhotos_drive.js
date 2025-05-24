@@ -10,7 +10,7 @@ const { PassThrough } = require('stream');
 
 // Configuración de Google Drive
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
-const KEYFILEPATH = './credentials.json';// Cambia por tu ruta de credenciales
+const KEYFILEPATH = './credentials.json'; // Cambia por tu ruta de credenciales
 const DRIVE_ROOT_FOLDER_ID = '1vve-NNSnxiuwVLsxQm_0WGWOjMdxf9FL'; // <-- Pega aquí el ID de tu carpeta de Drive
 
 // Busca o crea una carpeta en Drive y retorna su ID
@@ -137,11 +137,20 @@ async function convertRawToJpg(inputPath, outputPath) {
 
 async function getImageDateTime(filePath) {
     try {
+        const command = `exiftool -DateTimeOriginal -d "%Y:%m:%d %H:%M:%S" "${filePath}"`;
+        const { stdout } = await execAsync(command);
+        const dateMatch = stdout.match(/Date\/Time Original\s*:\s*(.+)/);
+        if (dateMatch && dateMatch[1]) {
+            return new Date(dateMatch[1].replace(':', '-').replace(':', '-'));
+        }
+        // Fallback to file stats if no EXIF data
         const stats = fs.statSync(filePath);
         return stats.birthtime || stats.mtime;
     } catch (error) {
-        console.error(`Error reading file stats for ${filePath}:`, error);
-        return new Date();
+        console.error(`Error reading EXIF data for ${filePath}:`, error);
+        // Fallback to file stats if exiftool fails
+        const stats = fs.statSync(filePath);
+        return stats.birthtime || stats.mtime;
     }
 }
 
@@ -214,18 +223,11 @@ async function processImage(filePath, slotName) {
 
 async function uploadJpgBuffersToDrive(jpgBuffers, slotName) {
     if (!jpgBuffers.length) return;
-    let auth, drive;
-    try {
-        auth = new google.auth.GoogleAuth({
-            keyFile: KEYFILEPATH,
-            scopes: SCOPES,
-        });
-        drive = google.drive({ version: 'v3', auth });
-        console.log(`🔑 Autenticación con Google Drive exitosa para slot: ${slotName}`);
-    } catch (authError) {
-        console.error('❌ Error de autenticación con Google Drive:', authError.message);
-        throw authError;
-    }
+    const auth = new google.auth.GoogleAuth({
+        keyFile: KEYFILEPATH,
+        scopes: SCOPES,
+    });
+    const drive = google.drive({ version: 'v3', auth });
     const subFolderId = await getOrCreateDriveFolder(drive, slotName, DRIVE_ROOT_FOLDER_ID);
     let uploadedCount = 0;
     for (const jpg of jpgBuffers) {
@@ -254,10 +256,7 @@ async function uploadJpgBuffersToDrive(jpgBuffers, slotName) {
         console.log('  ⚠️  No se subió ningún JPG a Drive para este slot.');
     } else {
         console.log(`🚀 Slot subido a Drive: ${slotName} (${uploadedCount} archivos)`);
-        console.log(`  📂 Enlace: https://drive.google.com/drive/folders/${subFolderId}`);
     }
-    // Log al finalizar el slot
-    console.log(`📦 Slot finalizado: ${slotName} | Imágenes subidas: ${uploadedCount}`);
 }
 
 async function processAllImages() {
@@ -275,7 +274,7 @@ async function processAllImages() {
         console.log(`📸 Imágenes por procesar: ${sortedArwFiles.length}`);
         let successCount = 0;
         let skippedCount = 0;
-        const limit = pLimit(12);
+        const limit = pLimit(8);
         // Agrupar archivos por slot
         const slotGroups = {};
         for (const file of sortedArwFiles) {
