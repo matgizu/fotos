@@ -211,8 +211,11 @@ async function processAllImages() {
     }
 }
     */
-   async function processAllImages() {
+
+async function processAllImages() {
     try {
+        const startTotalTime = Date.now(); // 🕒 Inicia el cronómetro global
+
         const files = await fs.readdir(inputDir);
         const arwFiles = files.filter(file => file.toLowerCase().endsWith('.arw'));
 
@@ -222,7 +225,7 @@ async function processAllImages() {
         let successCount = 0;
         let skippedCount = 0;
 
-        const limit = pLimit(8); // Cambia el número si quieres más/menos paralelo
+        const limit = pLimit(8); // Procesamiento paralelo
 
         const tasks = arwFiles.map(file => limit(async () => {
             const jpgName = file.replace('.ARW', '.jpg').toLowerCase();
@@ -246,14 +249,19 @@ async function processAllImages() {
 
         await Promise.allSettled(tasks);
 
+        const endTotalTime = Date.now(); // 🕒 Finaliza cronómetro
+        const totalDurationSeconds = ((endTotalTime - startTotalTime) / 1000).toFixed(2);
+
         console.log('🏁 Procesamiento finalizado');
         console.log(`✅ Marca de agua aplicada: ${successCount}`);
         console.log(`⏭️  Imágenes omitidas: ${skippedCount}`);
         console.log(`📦 Total imágenes encontradas: ${arwFiles.length}`);
+        console.log(`⏱️ Tiempo total de ejecución: ${totalDurationSeconds} segundos`);
     } catch (error) {
         console.error('❌ Error procesando imágenes:', error);
     }
 }
+
 
 
 processAllImages();
