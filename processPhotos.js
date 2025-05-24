@@ -36,7 +36,7 @@ timeSlots.forEach(slot => {
     fs.ensureDirSync(path.join(outputDir, slot.folderName));
 });
 fs.ensureDirSync(path.join(outputDir, 'other'));
-/* DCRAW
+
 async function convertRawToJpg(inputPath, outputPath) {
     try {
         const command = `dcraw -v -w -T -q 3 "${inputPath}"`;
@@ -52,18 +52,7 @@ async function convertRawToJpg(inputPath, outputPath) {
         return false;
     }
 }
-*/
 
-async function convertRawToJpg(inputPath, outputPath) {
-    try {
-        const command = `convert "${inputPath}" -quality 90 "${outputPath}"`;
-        await execAsync(command);
-        return await fs.pathExists(outputPath);
-    } catch (error) {
-        console.error(`Error converting ${inputPath} with ImageMagick:`, error);
-        return false;
-    }
-}
 async function getImageDateTime(filePath) {
     try {
         const stats = fs.statSync(filePath);
@@ -176,7 +165,8 @@ async function processImage(filePath) {
     }
 }
 
-
+const pLimit = require('p-limit');
+/*
 async function processAllImages() {
     try {
         const files = await fs.readdir(inputDir);
@@ -219,5 +209,50 @@ async function processAllImages() {
         console.error('❌ Error procesando imágenes:', error);
     }
 }
+    */
+   async function processAllImages() {
+    try {
+        const files = await fs.readdir(inputDir);
+        const arwFiles = files.filter(file => file.toLowerCase().endsWith('.arw'));
+
+        const alreadyProcessed = await getAlreadyProcessedFiles();
+        console.log(`📸 Imágenes por procesar: ${arwFiles.length}`);
+
+        let successCount = 0;
+        let skippedCount = 0;
+
+        const limit = pLimit(8); // Cambia el número si quieres más/menos paralelo
+
+        const tasks = arwFiles.map(file => limit(async () => {
+            const jpgName = file.replace('.ARW', '.jpg').toLowerCase();
+
+            if (alreadyProcessed.has(jpgName)) {
+                console.log(`⏭️  Saltando ${file}, ya procesado`);
+                skippedCount++;
+                return;
+            }
+
+            const filePath = path.join(inputDir, file);
+            await processImage(filePath);
+
+            const imageDateTime = await getImageDateTime(filePath);
+            const timeSlotFolder = findTimeSlot(imageDateTime);
+            const outputPath = path.join(outputDir, timeSlotFolder, jpgName);
+            if (await fs.pathExists(outputPath)) {
+                successCount++;
+            }
+        }));
+
+        await Promise.allSettled(tasks);
+
+        console.log('🏁 Procesamiento finalizado');
+        console.log(`✅ Marca de agua aplicada: ${successCount}`);
+        console.log(`⏭️  Imágenes omitidas: ${skippedCount}`);
+        console.log(`📦 Total imágenes encontradas: ${arwFiles.length}`);
+    } catch (error) {
+        console.error('❌ Error procesando imágenes:', error);
+    }
+}
+
 
 processAllImages();
