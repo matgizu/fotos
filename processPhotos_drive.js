@@ -10,7 +10,7 @@ const { PassThrough } = require('stream');
 
 // Configuración de Google Drive
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
-const KEYFILEPATH = '/home/ubuntu/fotos/credentials.json';// Cambia por tu ruta de credenciales
+const KEYFILEPATH = './credentials.json';// Cambia por tu ruta de credenciales
 const DRIVE_ROOT_FOLDER_ID = '1vve-NNSnxiuwVLsxQm_0WGWOjMdxf9FL'; // <-- Pega aquí el ID de tu carpeta de Drive
 
 // Busca o crea una carpeta en Drive y retorna su ID
@@ -90,10 +90,10 @@ async function uploadFolderToDrive(folderPath, folderNameOnDrive = null) {
     }
 }
 
-//const inputDir = '/Volumes/Untitled/DCIM/100MSDCF';
-const inputDir = '../inputDir/24MAYO';
-const tempDir = '../temp';
-//const tempDir = '/Volumes/3207571629/PRUEBA_DRIVE/temp';
+const inputDir = '/Volumes/Untitled/DCIM/100MSDCF';
+//const inputDir = '../inputDir/24MAYO';
+//const tempDir = '../temp';
+const tempDir = '/Volumes/3207571629/PRUEBA_DRIVE/temp';
 
 //const tempDir = './temp';
 const watermark2Path = './watermark2.png';
@@ -214,11 +214,18 @@ async function processImage(filePath, slotName) {
 
 async function uploadJpgBuffersToDrive(jpgBuffers, slotName) {
     if (!jpgBuffers.length) return;
-    const auth = new google.auth.GoogleAuth({
-        keyFile: KEYFILEPATH,
-        scopes: SCOPES,
-    });
-    const drive = google.drive({ version: 'v3', auth });
+    let auth, drive;
+    try {
+        auth = new google.auth.GoogleAuth({
+            keyFile: KEYFILEPATH,
+            scopes: SCOPES,
+        });
+        drive = google.drive({ version: 'v3', auth });
+        console.log(`🔑 Autenticación con Google Drive exitosa para slot: ${slotName}`);
+    } catch (authError) {
+        console.error('❌ Error de autenticación con Google Drive:', authError.message);
+        throw authError;
+    }
     const subFolderId = await getOrCreateDriveFolder(drive, slotName, DRIVE_ROOT_FOLDER_ID);
     let uploadedCount = 0;
     for (const jpg of jpgBuffers) {
@@ -247,7 +254,10 @@ async function uploadJpgBuffersToDrive(jpgBuffers, slotName) {
         console.log('  ⚠️  No se subió ningún JPG a Drive para este slot.');
     } else {
         console.log(`🚀 Slot subido a Drive: ${slotName} (${uploadedCount} archivos)`);
+        console.log(`  📂 Enlace: https://drive.google.com/drive/folders/${subFolderId}`);
     }
+    // Log al finalizar el slot
+    console.log(`📦 Slot finalizado: ${slotName} | Imágenes subidas: ${uploadedCount}`);
 }
 
 async function processAllImages() {
