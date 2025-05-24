@@ -11,7 +11,8 @@
   "license": "ISC",
   "dependencies": {
     "fs-extra": "^11.3.0",
-    "p-limit": "^6.2.0",
+    "googleapis": "^149.0.0",
+    "p-limit": "^3.1.0",
     "path": "^0.12.7",
     "sharp": "^0.32.1"
   }
