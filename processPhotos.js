@@ -166,6 +166,7 @@ async function processImage(filePath) {
 }
 
 const pLimit = require('p-limit');
+
 /*
 async function processAllImages() {
     try {
