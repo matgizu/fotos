@@ -11,7 +11,7 @@ const { PassThrough } = require('stream');
 // Configuración de Google Drive
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 const KEYFILEPATH = './credentials.json'; // Cambia por tu ruta de credenciales
-const DRIVE_ROOT_FOLDER_ID = '1vve-NNSnxiuwVLsxQm_0WGWOjMdxf9FL'; // <-- Pega aquí el ID de tu carpeta de Drive
+const DRIVE_ROOT_FOLDER_ID = '1VEfOoBB-xtoBASz3IxzQqH1DQHsyMu8u'; // <-- Pega aquí el ID de tu carpeta de Drive
 
 // Busca o crea una carpeta en Drive y retorna su ID
 async function getOrCreateDriveFolder(drive, folderName, parentId = null) {
@@ -91,7 +91,7 @@ async function uploadFolderToDrive(folderPath, folderNameOnDrive = null) {
 }
 
 //const inputDir = '/Volumes/Untitled/DCIM/100MSDCF';
-const inputDir = '../inputDir/24MAYO';
+const inputDir = '../inputDir/25MAYO';
 const tempDir = '../temp';
 //const tempDir = '/Volumes/3207571629/PRUEBA_DRIVE/temp';
 
