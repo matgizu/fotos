@@ -7,9 +7,9 @@ const execAsync = promisify(exec);
 
 // Configuration
 //const inputDir = '/Volumes/Untitled/DCIM/103MSDCF/2';
-const inputDir = '../inputDir/100MSDCF';
+const inputDir = '../inputDir/100MSDCF/last';
 //const outputDir = '/Volumes/3207571629/15JUNIO';
-const outputDir = './salida';
+const outputDir = './salida/last';
 //const tempDir = '/Volumes/3207571629/temp';
 const tempDir = './temp';
 const watermark2Path = './watermark2.png';
