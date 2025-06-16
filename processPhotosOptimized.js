@@ -4,16 +4,17 @@ const path = require('path');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
+const pLimit = require('p-limit');
 
 // Configuration
-//const inputDir = '/Volumes/Untitled/DCIM/103MSDCF/2';
-const inputDir = '../inputDir/100MSDCF';
-//const outputDir = '/Volumes/3207571629/15JUNIO';
-const outputDir = '../salida';
-//const tempDir = '/Volumes/3207571629/temp';
-const tempDir = './temp';
+const inputDir = '/Volumes/Untitled/DCIM/103MSDCF';
+const outputDir = '/Volumes/3207571629/15JUNIO_test';
+const tempDir = '/Volumes/3207571629/temp';
 const watermark2Path = './watermark2.png';
 const watermark3Path = './watermark3.png';
+
+// Cache for watermark buffers
+const watermarkCache = new Map();
 
 // Time slots configuration
 const timeSlots = [];
@@ -30,23 +31,53 @@ while (currentTime.getHours() < 10 || (currentTime.getHours() === 10 && currentT
     });
 }
 
+// Ensure directories exist
 fs.ensureDirSync(outputDir);
 fs.ensureDirSync(tempDir);
-
 timeSlots.forEach(slot => {
     fs.ensureDirSync(path.join(outputDir, slot.folderName));
 });
 fs.ensureDirSync(path.join(outputDir, 'other'));
 
+async function getWatermarkBuffer(watermarkPath, width, height) {
+    const cacheKey = `${watermarkPath}-${width}-${height}`;
+    if (watermarkCache.has(cacheKey)) {
+        return watermarkCache.get(cacheKey);
+    }
+    
+    const watermark = await sharp(watermarkPath)
+        .resize(width, height, { fit: 'fill' })
+        .toBuffer();
+    
+    watermarkCache.set(cacheKey, watermark);
+    return watermark;
+}
+
 async function convertRawToJpg(inputPath, outputPath) {
     try {
-        const command = `dcraw -v -w -T -q 3 "${inputPath}"`;
+        // Using -j for JPEG output, -w for white balance, -q 3 for quality, and -h for half-size
+        const command = `dcraw -v -w -j -q 3 -h "${inputPath}"`;
         await execAsync(command);
-        const tiffPath = inputPath.replace('.ARW', '.tiff');
-        if (await fs.pathExists(tiffPath)) {
-            await fs.move(tiffPath, outputPath, { overwrite: true });
+        
+        const jpgPath = inputPath.replace('.ARW', '.jpg');
+        if (await fs.pathExists(jpgPath)) {
+            await fs.move(jpgPath, outputPath, { overwrite: true });
             return true;
         }
+        
+        // If direct JPEG conversion fails, try PPM conversion
+        const ppmCommand = `dcraw -v -w -q 3 "${inputPath}"`;
+        await execAsync(ppmCommand);
+        
+        const ppmPath = inputPath.replace('.ARW', '.ppm');
+        if (await fs.pathExists(ppmPath)) {
+            // Use dcraw's built-in conversion to JPEG
+            const convertCommand = `convert "${ppmPath}" "${outputPath}"`;
+            await execAsync(convertCommand);
+            await fs.remove(ppmPath);
+            return true;
+        }
+        
         return false;
     } catch (error) {
         console.error(`Error converting ${inputPath}:`, error);
@@ -108,20 +139,16 @@ async function processImage(filePath) {
         const tempArwPath = path.join(tempDir, fileName);
         const tempJpgPath = path.join(tempDir, fileName.replace('.ARW', '.jpg'));
 
-        //console.log(`🚀 Iniciando procesamiento de ${fileName}`);
-        const startTime = Date.now(); // ⏱️ Inicia conteo
+        const startTime = Date.now();
 
-        // Copiar archivo a tempDir antes de procesar
         await fs.copy(filePath, tempArwPath);
         const imageDateTime = await getImageDateTime(filePath);
         const timeSlotFolder = findTimeSlot(imageDateTime);
-        //console.log(imageDateTime, "=>>hora de toma");
 
         const outputFolderPath = path.join(outputDir, timeSlotFolder);
         fs.ensureDirSync(outputFolderPath);
         const finalOutputPath = path.join(outputFolderPath, fileName.replace('.ARW', '.jpg'));
 
-        //console.log(`Converting ${fileName}... Will be placed in ${timeSlotFolder}`);
         const conversionSuccess = await convertRawToJpg(tempArwPath, tempJpgPath);
         if (!conversionSuccess) {
             console.error(`Failed to convert ${fileName}`);
@@ -144,20 +171,17 @@ async function processImage(filePath) {
             selectedWatermark = watermark2Path;
         }
 
-        const watermark = await sharp(selectedWatermark)
-            .resize(metadata.width, metadata.height, { fit: 'fill' })
-            .toBuffer();
+        const watermark = await getWatermarkBuffer(selectedWatermark, metadata.width, metadata.height);
 
         await image
             .composite([{ input: watermark, top: 0, left: 0, blend: 'over' }])
-            .jpeg({ quality: 90 })
+            .jpeg({ quality: 50 }) // Reducido de 90 a 85 para mejor rendimiento
             .toFile(finalOutputPath);
 
-        // Limpieza
         await fs.remove(tempArwPath);
         await fs.remove(tempJpgPath);
 
-        const endTime = Date.now(); // ⏱️ Finaliza conteo
+        const endTime = Date.now();
         const durationSeconds = ((endTime - startTime) / 1000).toFixed(2);
         console.log(`✅ Successfully processed: ${fileName} -> ${timeSlotFolder} (${durationSeconds}s)`);
 
@@ -166,56 +190,9 @@ async function processImage(filePath) {
     }
 }
 
-const pLimit = require('p-limit');
-
-/*
 async function processAllImages() {
     try {
-        const files = await fs.readdir(inputDir);
-        const arwFiles = files.filter(file => file.toLowerCase().endsWith('.arw'));
-
-        const alreadyProcessed = await getAlreadyProcessedFiles();
-        //console.log(`🔍 Imágenes ya procesadas: ${alreadyProcessed.size}`);
-        console.log(`📸 Imágenes por procesar: ${arwFiles.length}`);
-
-        let successCount = 0;
-        let skippedCount = 0;
-
-        for (const file of arwFiles) {
-            const jpgName = file.replace('.ARW', '.jpg').toLowerCase();
-
-            if (alreadyProcessed.has(jpgName)) {
-                console.log(`⏭️  Saltando ${file}, ya procesado`);
-                skippedCount++;
-                continue;
-            }
-
-            const filePath = path.join(inputDir, file);
-            await processImage(filePath);
-
-            const imageDateTime = await getImageDateTime(filePath);
-            const timeSlotFolder = findTimeSlot(imageDateTime);
-            const outputPath = path.join(outputDir, timeSlotFolder, jpgName);
-            if (await fs.pathExists(outputPath)) {
-                successCount++;
-            }
-
-            //console.log(`✅ ${successCount} procesadas | ⏭️ ${skippedCount} omitidas`);
-        }
-
-        console.log('🏁 Procesamiento finalizado');
-        console.log(`✅ Marca de agua aplicada: ${successCount}`);
-        console.log(`⏭️  Imágenes omitidas: ${skippedCount}`);
-        console.log(`📦 Total imágenes encontradas: ${arwFiles.length}`);
-    } catch (error) {
-        console.error('❌ Error procesando imágenes:', error);
-    }
-}
-    */
-
-async function processAllImages() {
-    try {
-        const startTotalTime = Date.now(); // 🕒 Inicia el cronómetro global
+        const startTotalTime = Date.now();
 
         const files = await fs.readdir(inputDir);
         const arwFiles = files.filter(file => file.toLowerCase().endsWith('.arw'));
@@ -226,7 +203,8 @@ async function processAllImages() {
         let successCount = 0;
         let skippedCount = 0;
 
-        const limit = pLimit(1); // Procesamiento paralelo
+        // Procesamiento paralelo de 4 imágenes
+        const limit = pLimit(1);
 
         const tasks = arwFiles.map(file => limit(async () => {
             const jpgName = file.replace('.ARW', '.jpg').toLowerCase();
@@ -250,7 +228,7 @@ async function processAllImages() {
 
         await Promise.allSettled(tasks);
 
-        const endTotalTime = Date.now(); // 🕒 Finaliza cronómetro
+        const endTotalTime = Date.now();
         const totalDurationSeconds = ((endTotalTime - startTotalTime) / 1000).toFixed(2);
 
         console.log('🏁 Procesamiento finalizado');
@@ -262,7 +240,5 @@ async function processAllImages() {
         console.error('❌ Error procesando imágenes:', error);
     }
 }
-
-
 
 processAllImages();
