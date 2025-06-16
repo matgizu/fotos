@@ -6,12 +6,12 @@ const { promisify } = require('util');
 const execAsync = promisify(exec);
 
 // Configuration
-//const inputDir = '/Volumes/Untitled/DCIM/103MSDCF/2';
-const inputDir = '../inputDir/100MSDCF';
-//const outputDir = '/Volumes/3207571629/15JUNIO';
-const outputDir = '../salida';
-//const tempDir = '/Volumes/3207571629/temp';
-const tempDir = './temp';
+const inputDir = '/Volumes/Untitled/DCIM/103MSDCF/2';
+//const inputDir = '../inputDir/100MSDCF';
+const outputDir = '/Volumes/3207571629/15JUNIO';
+//const outputDir = './salida';
+const tempDir = '/Volumes/3207571629/temp';
+//const tempDir = './temp';
 const watermark2Path = './watermark2.png';
 const watermark3Path = './watermark3.png';
 
@@ -226,7 +226,7 @@ async function processAllImages() {
         let successCount = 0;
         let skippedCount = 0;
 
-        const limit = pLimit(1); // Procesamiento paralelo
+        const limit = pLimit(8); // Procesamiento paralelo
 
         const tasks = arwFiles.map(file => limit(async () => {
             const jpgName = file.replace('.ARW', '.jpg').toLowerCase();
