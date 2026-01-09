@@ -6,12 +6,14 @@ const { promisify } = require('util');
 const execAsync = promisify(exec);
 
 // Configuration
-//const inputDir = '/Volumes/Untitled/DCIM/103MSDCF/2';
-const inputDir = '../inputDir/100MSDCF/last/4';
-//const outputDir = '/Volumes/3207571629/15JUNIO';
-const outputDir = './salida/last';
-//const tempDir = '/Volumes/3207571629/temp';
-const tempDir = './temp';
+const inputDir = '/Volumes/Untitled/DCIM/100MSDCF';
+//const inputDir = '../inputDir/100MSDCF/last/4';
+//
+const outputDir = '/Volumes/3207571629/18OCT';
+//const outputDir = './salida/11octubre';
+//const outputDir = './salida/last';
+const tempDir = '/Volumes/3207571629/temp';
+//const tempDir = './temp';
 const watermark2Path = './watermark2.png';
 const watermark3Path = './watermark3.png';
 
@@ -150,7 +152,7 @@ async function processImage(filePath) {
 
         await image
             .composite([{ input: watermark, top: 0, left: 0, blend: 'over' }])
-            .jpeg({ quality: 90 })
+            .jpeg({ quality: 30 })
             .toFile(finalOutputPath);
 
         // Limpieza
