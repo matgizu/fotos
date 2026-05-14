@@ -11,12 +11,12 @@ const execAsync = promisify(exec);
 const inputDir  = '/Volumes/Untitled/DCIM/100MSDCF'; // CAMBIO AQUÍ: carpeta con las ARW originales
 //const inputDir  = '/Volumes/3207571629/14FEBRERO/DCIM/100MSDCF';
 
-const outputDir = '/Volumes/3207571629/15Marzo';
+const outputDir = '/Volumes/3207571629/10Mayo';
 const tempDir   = '/Volumes/3207571629/temp';
 
 //const watermark2Path = './watermark2.png'; // SIEMPRE esta
 const watermark2Path = './watermark.png'; // SIEMPRE esta
-const JPG_QUALITY = 50;
+const JPG_QUALITY = 70;
 const CONCURRENCY = 2;
 
 // >>> NUEVO: procesar desde esta foto hacia arriba <<<
