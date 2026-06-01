@@ -8,11 +8,11 @@ const pLimit = require('p-limit');
 const execAsync = promisify(exec);
 
 // ====== CONFIG ======
-const inputDir  = '/Volumes/Untitled/DCIM/100MSDCF'; // CAMBIO AQUÍ: carpeta con las ARW originales
+const inputDir  = '/Volumes/Untitled/DCIM/102MSDCF'; // CAMBIO AQUÍ: carpeta con las ARW originales
 //const inputDir  = '/Volumes/3207571629/14FEBRERO/DCIM/100MSDCF';
 
-const outputDir = '/Volumes/3207571629/10Mayo';
-const tempDir   = '/Volumes/3207571629/temp';
+const outputDir = '/Volumes/3207571629 1/31Mayo';
+const tempDir   = '/Volumes/3207571629 1/temp';
 
 //const watermark2Path = './watermark2.png'; // SIEMPRE esta
 const watermark2Path = './watermark.png'; // SIEMPRE esta
